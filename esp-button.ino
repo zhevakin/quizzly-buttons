@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
+#include "FastLED.h"
+
 
 // Global copy of slave/peer device
 // For broadcasts, the addr needs to be ff:ff:ff:ff:ff:ff
@@ -14,7 +16,13 @@ Preferences preferences;
 #define PRINTSCANRESULTS 0
 #define DELETEBEFOREPAIR 0
 #define BUTTON_PIN 13
-#define LED_PIN 12
+#define LED_PIN 12      
+
+#define RGB_LED_PIN 2   // to DI LED stripe
+#define LED_NUM 24      // number of LEDs
+
+CRGB leds[LED_NUM];
+int brightness = 50;
 
 // Function to set LED color and save to NVS
 void setLedColor(const char* color) {
@@ -213,7 +221,8 @@ void setup() {
   Serial.begin(9600);
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT); // Ensure the LED pin is set as OUTPUT
-
+  pinMode(RGB_LED_PIN, OUTPUT);
+  
   // Initialize NVS
   preferences.begin("button", false);
   // Get saved color and apply it if exists
