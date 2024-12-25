@@ -11,7 +11,6 @@
 esp_now_peer_info_t slave;
 Preferences preferences;
 
-#define BUTTON_ID 1 // Define BUTTON_ID
 #define CHANNEL 3
 #define PRINTSCANRESULTS 0
 #define DELETEBEFOREPAIR 0
@@ -19,21 +18,36 @@ Preferences preferences;
 #define LED_PIN 12      
 
 #define RGB_LED_PIN 2   // to DI LED stripe
-#define LED_NUM 24      // number of LEDs
+#define NUM_LEDS 24      // number of LEDs
 
-CRGB leds[LED_NUM];
-int brightness = 50;
+CRGB leds[NUM_LEDS];
+//int brightness = 50;
+byte color[3];
+String id ;
 
-// Function to set LED color and save to NVS
-void setLedColor(const char* color) {
-  // Save color to NVS
-  preferences.begin("button", false);
-  preferences.putString("color", color);
-  preferences.end();
+/////////////////////////////////////////////////////////////////////////////////////
+
+// service function for parsing color:
+void parsColor(String colorStr, byte* c){
+  String red, green, blue;
+
+  red=colorStr.substring(0, colorStr.indexOf(":"));
   
-  // Empty function for LED color control
-  // Would implement RGB LED control here using the color value
+  colorStr=colorStr.substring(colorStr.indexOf(":")+1);
+  green=colorStr.substring(0,colorStr.indexOf(":"));
+
+  blue=colorStr.substring(colorStr.indexOf(":")+1);
+
+  int tmpInt;
+  tmpInt = red.toInt(); 
+  c[0] = tmpInt;
+  tmpInt = green.toInt();
+  c[1] = tmpInt;
+  tmpInt = blue.toInt();
+  c[2]=tmpInt;
 }
+
+
 
 // Init ESP Now with fallback
 void InitESPNow() {
@@ -183,32 +197,47 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     Serial.println(recvData);
 
     // Compare received data with expected messages
-    char ledOnMessage[30];
-    char ledOffMessage[30];
-    char ledColorPrefix[30];
-    sprintf(ledOnMessage, "BUTTON_LED_ON:%d", BUTTON_ID);
-    sprintf(ledOffMessage, "BUTTON_LED_OFF:%d", BUTTON_ID);
-    sprintf(ledColorPrefix, "BUTTON_LED_COLOR:%d:", BUTTON_ID);
+    String ledOnMessage = "BUTTON_LED_ON:" + id;
+    String ledOffMessage = "BUTTON_LED_OFF:" + id;
+    String ledColorPrefix = "BUTTON_LED_COLOR:" + id;
 
-    if (strcmp(recvData, ledOnMessage) == 0) {
+    String recvDataStr = recvData;
+
+    if(recvDataStr.startsWith("BUTTON_SET_ID:",0)){
+      Serial.println("Received BUTTON_SET_ID command");
+      String idStr;
+      idStr=recvDataStr.substring(14);
+      Serial.print("Received ID = ");Serial.println(idStr);
+      preferences.begin("button", false);
+      preferences.putString("id", idStr);
+      preferences.end();      
+    }
+
+    if (recvDataStr.startsWith(ledOnMessage,0)) {
       // The received message matches LED ON
       Serial.println("Received BUTTON_LED_ON command");
-      digitalWrite(LED_PIN, HIGH);
+      
     }
-    else if (strcmp(recvData, ledOffMessage) == 0) {
+    else if (recvDataStr.startsWith(ledOffMessage,0)) {
       // The received message matches LED OFF  
       Serial.println("Received BUTTON_LED_OFF command");
-      digitalWrite(LED_PIN, LOW);
+      
     }
-    else if (strncmp(recvData, ledColorPrefix, strlen(ledColorPrefix)) == 0) {
+    else if (recvDataStr.startsWith(ledColorPrefix,0)) {
       // The received message starts with BUTTON_LED_COLOR:ID:
       Serial.println("Received BUTTON_LED_COLOR command");
-      // Extract the color value after the prefix
-      const char* colorValue = recvData + strlen(ledColorPrefix);
-      // Call the color setting function that saves to NVS
-      setLedColor(colorValue);
-      Serial.print("Color value: ");
-      Serial.println(colorValue);
+      int comandLength = 18 + id.length();
+      
+      String colorStr = recvDataStr.substring(comandLength);
+      Serial.println(colorStr);
+
+      parsColor(colorStr, color);    
+
+      preferences.begin("button", false);
+      preferences.putBytes("color", color, 3);
+      preferences.end();  
+      FastLED.showColor(CRGB(color[0], color[1], color[2]));
+
     }
 
   } else {
@@ -219,21 +248,22 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
 
 void setup() {
   Serial.begin(9600);
+  Serial.println("START_BUTOON_SETUP");
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT); // Ensure the LED pin is set as OUTPUT
   pinMode(RGB_LED_PIN, OUTPUT);
   
-  // Initialize NVS
+
+  FastLED.addLeds<WS2811, RGB_LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   preferences.begin("button", false);
-  // Get saved color and apply it if exists
-  String savedColor = preferences.getString("color", "");
-  if (savedColor.length() > 0) {
-    setLedColor(savedColor.c_str());
-  }
+  id = preferences.getString("id", "");
+  preferences.getBytes("color",color,3);
   preferences.end();
 
+  Serial.print("BUTTON_ID = ");Serial.println(id);
+  Serial.print("BUTTON_COLOR = ");Serial.print(color[0]);Serial.print(":");Serial.print(color[1]);Serial.print(":");Serial.println(color[2]);
+  Serial.println("ESP Start WiFi setup");
   WiFi.mode(WIFI_STA);
-  Serial.println("ESPNow/Basic/Master Example");
   Serial.print("STA MAC: ");
   Serial.println(WiFi.macAddress());
 
@@ -247,7 +277,9 @@ void setup() {
   initBroadcastSlave();
 
   // Uncomment this if you want to send data on startup
-  // sendData(BUTTON_ID);
+  // sendData(id);
+  Serial.println("END_BUTOON_SETUP");
+  FastLED.showColor(CRGB(color[0], color[1], color[2]));
 }
 
 void loop() {
@@ -255,7 +287,7 @@ void loop() {
 
   if (buttonState == HIGH) { // Check if the button is pressed
     Serial.println("Button Pressed");
-    sendData(BUTTON_ID);
+    //sendData(id);
     delay(100); // Debounce delay
     while (digitalRead(BUTTON_PIN) == HIGH) {
       // Wait for button release
