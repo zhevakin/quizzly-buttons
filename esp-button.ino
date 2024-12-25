@@ -216,11 +216,13 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     if (recvDataStr.startsWith(ledOnMessage,0)) {
       // The received message matches LED ON
       Serial.println("Received BUTTON_LED_ON command");
+      FastLED.showColor(CRGB(color[0], color[1], color[2]));
       
     }
     else if (recvDataStr.startsWith(ledOffMessage,0)) {
       // The received message matches LED OFF  
       Serial.println("Received BUTTON_LED_OFF command");
+      FastLED.showColor(CRGB(0, 0, 0));
       
     }
     else if (recvDataStr.startsWith(ledColorPrefix,0)) {
