@@ -142,15 +142,18 @@ void deletePeer() {
 }
 
 // Send data
-void sendData(uint8_t buttonId) {
-  char message[20];
-  sprintf(message, "BUTTON_PRESS:%d", buttonId);
+void sendData(String msg_str) {
+  
+  String str = msg_str;
 
+  int str_len = str.length() + 1;
+  char char_array[str_len];
+  str.toCharArray(char_array, str_len);
   const uint8_t *peer_addr = slave.peer_addr;
 
   Serial.print("Sending: ");
-  Serial.println(message);
-  esp_err_t result = esp_now_send(peer_addr, (uint8_t *)message, strlen(message) + 1);
+  Serial.println(str);
+  esp_err_t result = esp_now_send(peer_addr, (uint8_t *)char_array, str_len);
   Serial.print("Send Status: ");
   if (result == ESP_OK) {
     Serial.println("Success");
@@ -199,18 +202,28 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     // Compare received data with expected messages
     String ledOnMessage = "BUTTON_LED_ON:" + id;
     String ledOffMessage = "BUTTON_LED_OFF:" + id;
-    String ledColorPrefix = "BUTTON_LED_COLOR:" + id;
+    String setColorMessage = "BUTTON_LED_COLOR:" + id;
+    String getIdMessage = "BUTTON_GET_ID";
+    String setIdMessage = "BUTTON_SET_ID:";
+    
 
+    // char[] to sting convert:
     String recvDataStr = recvData;
 
-    if(recvDataStr.startsWith("BUTTON_SET_ID:",0)){
+    if(recvDataStr.startsWith(getIdMessage,0)){
+      Serial.println("Received BUTTON_GET_ID command");
+      sendData("BUTTON_ID:" + id);
+
+    }
+
+
+    if(recvDataStr.startsWith(setIdMessage,0)){
       Serial.println("Received BUTTON_SET_ID command");
-      String idStr;
-      idStr=recvDataStr.substring(14);
-      Serial.print("Received ID = ");Serial.println(idStr);
+      id=recvDataStr.substring(14);
+      Serial.print("Received ID = ");Serial.println(id);
       preferences.begin("button", false);
-      preferences.putString("id", idStr);
-      preferences.end();      
+      preferences.putString("id", id);
+      preferences.end();    
     }
 
     if (recvDataStr.startsWith(ledOnMessage,0)) {
@@ -225,7 +238,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
       FastLED.showColor(CRGB(0, 0, 0));
       
     }
-    else if (recvDataStr.startsWith(ledColorPrefix,0)) {
+    else if (recvDataStr.startsWith(setColorMessage,0)) {
       // The received message starts with BUTTON_LED_COLOR:ID:
       Serial.println("Received BUTTON_LED_COLOR command");
       int comandLength = 18 + id.length();
@@ -289,7 +302,7 @@ void loop() {
 
   if (buttonState == HIGH) { // Check if the button is pressed
     Serial.println("Button Pressed");
-    //sendData(id);
+    sendData("BUTTON_PRESS:"+id);
     delay(100); // Debounce delay
     while (digitalRead(BUTTON_PIN) == HIGH) {
       // Wait for button release
