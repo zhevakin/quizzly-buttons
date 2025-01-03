@@ -25,7 +25,28 @@ CRGB leds[NUM_LEDS];
 byte color[3];
 String id ;
 
+byte mainLoopStatus; 
+const byte NO_ACTION = 0;
+const byte WINNER_FLASH = 1;
+
+
 /////////////////////////////////////////////////////////////////////////////////////
+
+//
+void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num){
+  
+  CRGBPalette16 myPalette = RainbowStripesColors_p;
+
+  for(unsigned int i=0;i<num;i++){
+    FastLED.showColor(ColorFromPalette(myPalette, random(8)*32));
+    delay(del + del_);
+    FastLED.showColor(CRGB(0, 0, 0));
+    delay(del);
+  }
+
+        
+}
+
 
 // service function for parsing color:
 void parsColor(String colorStr, byte* c){
@@ -193,7 +214,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
   Serial.println(macStr);
 
   Serial.print("Last Packet Recv Data: ");
-  char recvData[250];
+  char recvData[150];
   if (data_len < sizeof(recvData)) {
     memcpy(recvData, data, data_len);
     recvData[data_len] = '\0'; // Null-terminate the string
@@ -205,55 +226,98 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     String setColorMessage = "BUTTON_LED_COLOR:" + id;
     String getIdMessage = "BUTTON_GET_ID";
     String setIdMessage = "BUTTON_SET_ID:";
-    
+    String changeIdMessage = "BUTTON_CHANGE_ID:" + id;
+    String winnerFlashMessage = "BUTTON_WINNER_FLASH:" + id;
 
     // char[] to sting convert:
     String recvDataStr = recvData;
 
-    if(recvDataStr.startsWith(getIdMessage,0)){
+    //Serial.print("recvDataStr ="); Serial.print(recvDataStr); Serial.print(";  length = "); Serial.println(recvDataStr.length());
+
+
+    //BUTTON_WINNER_FLASH
+    if(recvDataStr == winnerFlashMessage){
+      Serial.println("Received BUTTON_WINNER_FLASH command");
+      mainLoopStatus = WINNER_FLASH;
+
+    }
+
+    //BUTTON_GET_ID
+    if(recvDataStr == getIdMessage){
       Serial.println("Received BUTTON_GET_ID command");
       sendData("BUTTON_ID:" + id);
-
     }
 
-
-    if(recvDataStr.startsWith(setIdMessage,0)){
-      Serial.println("Received BUTTON_SET_ID command");
-      id=recvDataStr.substring(14);
-      Serial.print("Received ID = ");Serial.println(id);
-      preferences.begin("button", false);
-      preferences.putString("id", id);
-      preferences.end();    
-    }
-
-    if (recvDataStr.startsWith(ledOnMessage,0)) {
+    //BUTTON_LED_ON
+    if (recvDataStr == ledOnMessage) {
       // The received message matches LED ON
       Serial.println("Received BUTTON_LED_ON command");
       FastLED.showColor(CRGB(color[0], color[1], color[2]));
-      
     }
-    else if (recvDataStr.startsWith(ledOffMessage,0)) {
+
+    //BUTTON_LED_OFF
+    if (recvDataStr == ledOffMessage) {
       // The received message matches LED OFF  
       Serial.println("Received BUTTON_LED_OFF command");
       FastLED.showColor(CRGB(0, 0, 0));
+    }    
+
+
+    //BUTTON_SET_ID
+    if(recvDataStr.length() > setIdMessage.length()){
       
+      String tmpStr = recvDataStr.substring(0,setIdMessage.length());
+
+      if(tmpStr == setIdMessage){
+        Serial.println("Received BUTTON_SET_ID command");
+        id=recvDataStr.substring(14);
+        Serial.print("Received ID = ");Serial.println(id);
+        preferences.begin("button", false);
+        preferences.putString("id", id);
+        preferences.end();    
+      }    
     }
-    else if (recvDataStr.startsWith(setColorMessage,0)) {
-      // The received message starts with BUTTON_LED_COLOR:ID:
-      Serial.println("Received BUTTON_LED_COLOR command");
-      int comandLength = 18 + id.length();
-      
-      String colorStr = recvDataStr.substring(comandLength);
-      Serial.println(colorStr);
 
-      parsColor(colorStr, color);    
+    //BUTTON_CHANGE_ID
+    if(recvDataStr.length() > changeIdMessage.length()){
 
-      preferences.begin("button", false);
-      preferences.putBytes("color", color, 3);
-      preferences.end();  
-      FastLED.showColor(CRGB(color[0], color[1], color[2]));
+      String tmpStr = recvDataStr.substring(0,recvDataStr.lastIndexOf(':'));
 
+      if(tmpStr == changeIdMessage){
+        Serial.println("Received BUTTON_CHANGE_ID command");
+        id=recvDataStr.substring(18 + id.length());
+        Serial.print("Received ID = ");Serial.println(id);
+        preferences.begin("button", false);
+        preferences.putString("id", id);
+        preferences.end();    
+      }
     }
+
+    //BUTTON_LED_COLOR
+    if(recvDataStr.length() > setColorMessage.length()){
+
+      String tmpStr = recvDataStr.substring(0,recvDataStr.indexOf(':',17));
+
+      //Serial.println(tmpStr);
+      //Serial.println(setColorMessage);
+
+      if (tmpStr == setColorMessage) {
+        Serial.println("Received BUTTON_LED_COLOR command");
+        int comandLength = 18 + id.length();
+        
+        String colorStr = recvDataStr.substring(comandLength);
+        Serial.println(colorStr);
+
+        parsColor(colorStr, color);    
+
+        preferences.begin("button", false);
+        preferences.putBytes("color", color, 3);
+        preferences.end();  
+        FastLED.showColor(CRGB(color[0], color[1], color[2]));
+
+      }
+    }
+    
 
   } else {
     Serial.println("Data too large");
@@ -264,6 +328,10 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
 void setup() {
   Serial.begin(9600);
   Serial.println("START_BUTOON_SETUP");
+
+  // Задаём seed генерации случайного значения:
+  randomSeed(analogRead(3));
+
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT); // Ensure the LED pin is set as OUTPUT
   pinMode(RGB_LED_PIN, OUTPUT);
@@ -291,10 +359,12 @@ void setup() {
 
   initBroadcastSlave();
 
-  // Uncomment this if you want to send data on startup
-  // sendData(id);
-  Serial.println("END_BUTOON_SETUP");
   FastLED.showColor(CRGB(color[0], color[1], color[2]));
+ 
+  mainLoopStatus = NO_ACTION;
+ 
+  Serial.println("END_BUTOON_SETUP");
+  
 }
 
 void loop() {
@@ -309,6 +379,21 @@ void loop() {
       delay(10);
     }
   }
+
+  switch(mainLoopStatus){
+    case NO_ACTION:
+      break;
+    case WINNER_FLASH:
+      
+      coloredFlashlight(100,10,30);
+
+      mainLoopStatus = NO_ACTION;
+      break;
+  }
+  
+
+
+
 
   delay(100); // General loop delay
 }
