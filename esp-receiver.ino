@@ -5,7 +5,8 @@
 #define CHANNEL 3
 #define LOG_LOCAL_LEVEL ESP_LOG_NONE
 #include "esp_log.h"
-// #define LED_PIN 13
+
+bool debug = false;
 
 esp_now_peer_info_t broadcastPeer;
 
@@ -14,6 +15,8 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
 
 void setup() {
   Serial.begin(9600); // Initialize Serial communication
+  if(debug) {Serial.println();}
+  if(debug) {Serial.println("Receiver start setup");}
 
   // Wi-Fi initialization
   WiFi.mode(WIFI_STA);
@@ -43,6 +46,7 @@ void setup() {
     Serial.println("Failed to add broadcast peer");
     return;
   }
+  if(debug){Serial.println("Receiver end setup");}
 }
 
 void loop() {
