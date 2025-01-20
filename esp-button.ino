@@ -23,7 +23,9 @@ Preferences preferences;
 CRGB leds[NUM_LEDS];
 //int brightness = 50;
 byte color[3];
-String id ;
+String id;
+bool buttonEnabled = false;
+bool buttonBlocked = false;
 
 byte mainLoopStatus; 
 const byte NO_ACTION = 0;
@@ -228,6 +230,10 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     String setIdMessage = "BUTTON_SET_ID:";
     String changeIdMessage = "BUTTON_CHANGE_ID:" + id;
     String winnerFlashMessage = "BUTTON_WINNER_FLASH:" + id;
+    String enableMessage = "BUTTON_ENABLE:" + id;
+    String disableMessage = "BUTTON_DISABLE:" + id;
+    String blockMessage = "BUTTON_BLOCK:" + id;
+    String unblockMessage = "BUTTON_UNBLOCK:" + id;
 
     // char[] to sting convert:
     String recvDataStr = recvData;
@@ -239,13 +245,36 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     if(recvDataStr == winnerFlashMessage){
       Serial.println("Received BUTTON_WINNER_FLASH command");
       mainLoopStatus = WINNER_FLASH;
-
     }
 
     //BUTTON_GET_ID
     if(recvDataStr == getIdMessage){
       Serial.println("Received BUTTON_GET_ID command");
       sendData("BUTTON_ID:" + id);
+    }
+
+    //BUTTON_ENABLE
+    if(recvDataStr == enableMessage || recvDataStr == "ALL_BUTTONS_ENABLED") {
+      Serial.println("Received BUTTON_ENABLE command");
+      buttonEnabled = true;
+    }
+
+    //BUTTON_DISABLE  
+    if(recvDataStr == disableMessage || recvDataStr == "ALL_BUTTONS_DISABLED") {
+      Serial.println("Received BUTTON_DISABLE command");
+      buttonEnabled = false;
+    }
+
+    //BUTTON_BLOCK
+    if(recvDataStr == blockMessage || recvDataStr == "ALL_BUTTONS_BLOCKED") {
+      Serial.println("Received BUTTON_BLOCK command");
+      buttonBlocked = true;
+    }
+
+    //BUTTON_UNBLOCK
+    if(recvDataStr == unblockMessage || recvDataStr == "ALL_BUTTONS_UNBLOCK") {
+      Serial.println("Received BUTTON_UNBLOCK command");
+      buttonBlocked = false;
     }
 
     //BUTTON_LED_ON
@@ -370,7 +399,7 @@ void setup() {
 void loop() {
   int buttonState = digitalRead(BUTTON_PIN); // Read the button state
 
-  if (buttonState == HIGH) { // Check if the button is pressed
+  if (buttonEnabled && !buttonBlocked && buttonState == HIGH) { // Check if button is enabled and pressed
     Serial.println("Button Pressed");
     sendData("BUTTON_PRESS:"+id);
     delay(100); // Debounce delay

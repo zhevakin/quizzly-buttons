@@ -55,7 +55,7 @@ void loop() {
     message.trim(); // Remove any leading/trailing whitespace
 
     // Check if the message is in the correct format
-    if (message.startsWith("BUTTON_")) {
+    if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
       // Send the message via ESP-NOW
       esp_err_t result = esp_now_send(broadcastPeer.peer_addr, (uint8_t *)message.c_str(), message.length() + 1);
       if (result == ESP_OK) {
