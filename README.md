@@ -1,6 +1,6 @@
 # Helpers
 
-- Board name Node32s from esp32 packege 
+- Board name ESP32-WROOM-DA from esp32 packege 
 
 ### Used libraries:
 - FastLED
@@ -21,12 +21,6 @@
 Кнопки не проверяют наличие ID в команде, поэтому все услышавшие эту команду кнопки сменят свой ID.
 
 *btn_id* - String, должна быть уникальна для каждой кнопки;
-
-В комплекте не должно быть кнопок ID которых начинаются с ID других кнопок. Т.е.
-123Ab
-**123Ab**45C - неправильное значение
-
-
 
 
 ### BUTTON_LED_COLOR:btn_id:colorRed:colorGreen:colorBlue
@@ -51,4 +45,7 @@
 
 *btn_id* - ID кнопки.
 
+### BUTTON_WINNER_FLASH:btn_id
+При получении этой команды, кнопка начинает мигать разными цветами ~6 секунд. В конце гаснет.
 
+*btn_id* - ID кнопки.
