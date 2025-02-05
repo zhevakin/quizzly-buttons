@@ -31,6 +31,18 @@
 
 _btn_id_ - String, должна быть уникальна для каждой кнопки;
 
+### BUTTON_ENABLE:btn_id
+
+Команда включает кнопку.
+
+_btn_id_ - ID кнопки.
+
+### BUTTON_DISABLE:btn_id
+
+Команда выключает кнопку.
+
+_btn_id_ - ID кнопки.
+
 ### BUTTON_LED_COLOR:btn_id:colorRed:colorGreen:colorBlue
 
 Команда задаёт цвет кнопки. Цвет сохраняется в энергонезависимую память и загружается при включении.
