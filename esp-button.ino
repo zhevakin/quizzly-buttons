@@ -1,3 +1,4 @@
+// button.ino
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
@@ -13,9 +14,12 @@
 #define RGB_LED_PIN 2   // DI pin for LED strip
 #define NUM_LEDS 24
 
-// Add heartbeat constants
+// Heartbeat constants
 #define HEARTBEAT_INTERVAL 5000  // Send heartbeat every 5 seconds
 #define MAX_MISSED_HEARTBEATS 3  // Consider connection lost after 3 missed responses
+
+// Maximum number of retry attempts for sending a message
+#define MAX_SEND_RETRIES 3
 
 // ESP-NOW peer info
 esp_now_peer_info_t slave;
@@ -39,16 +43,16 @@ enum MainLoopState {
 };
 MainLoopState mainLoopStatus = NO_ACTION;
 
-// Add these global variables after other global variables
+// Global pairing and heartbeat variables
 bool isPaired = false;
 uint8_t receiverMac[6];
-
-// Add heartbeat variables
 unsigned long lastHeartbeatSent = 0;
 unsigned long lastHeartbeatReceived = 0;
 int missedHeartbeats = 0;
 
+// ------------------
 // LED Animation Functions
+// ------------------
 void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
   if (!useFastLED) return;
   
@@ -62,7 +66,9 @@ void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
   }        
 }
 
+// ------------------
 // Helper Functions
+// ------------------
 void parsColor(String colorStr, byte* c) {
   int firstColon = colorStr.indexOf(":");
   int secondColon = colorStr.indexOf(":", firstColon + 1);
@@ -76,7 +82,9 @@ void parsColor(String colorStr, byte* c) {
   c[2] = blue.toInt();
 }
 
+// ------------------
 // ESP-NOW Functions
+// ------------------
 void InitESPNow() {
   if (esp_now_init() == ESP_OK) {
     Serial.println("ESPNow Init Success");
@@ -164,6 +172,32 @@ void deletePeer() {
   }
 }
 
+// ------------------
+// Retry Mechanism Helper
+// ------------------
+// This function tries to send data using ESP-NOW up to maxRetries times.
+// It returns true if sending was queued successfully.
+bool sendWithRetry(const uint8_t *peer_addr, uint8_t *data, size_t len, uint8_t maxRetries = MAX_SEND_RETRIES) {
+  uint8_t attempt = 0;
+  esp_err_t result;
+  while (attempt < maxRetries) {
+    result = esp_now_send(peer_addr, data, len);
+    if (result == ESP_OK) {
+      return true;
+    }
+    Serial.print("Send attempt ");
+    Serial.print(attempt + 1);
+    Serial.print(" failed with error code: ");
+    Serial.println(result);
+    attempt++;
+    delay(50); // Small delay between attempts
+  }
+  return false;
+}
+
+// ------------------
+// Send Data Function with Retry
+// ------------------
 void sendData(String message) {
   int str_len = message.length() + 1;
   char char_array[str_len];
@@ -172,38 +206,23 @@ void sendData(String message) {
   Serial.print("Sending: ");
   Serial.println(message);
   
-  esp_err_t result = esp_now_send(slave.peer_addr, (uint8_t *)char_array, str_len);
+  bool success = sendWithRetry(slave.peer_addr, (uint8_t *)char_array, str_len);
   
-  Serial.print("Send Status: ");
-  switch(result) {
-    case ESP_OK:
-      Serial.println("Success");
-      break;
-    case ESP_ERR_ESPNOW_NOT_INIT:
-      Serial.println("ESPNOW not Init.");
-      break;
-    case ESP_ERR_ESPNOW_ARG:
-      Serial.println("Invalid Argument");
-      break;
-    case ESP_ERR_ESPNOW_INTERNAL:
-      Serial.println("Internal Error");
-      break;
-    case ESP_ERR_ESPNOW_NO_MEM:
-      Serial.println("ESP_ERR_ESPNOW_NO_MEM");
-      break;
-    case ESP_ERR_ESPNOW_NOT_FOUND:
-      Serial.println("Peer not found.");
-      break;
-    default:
-      Serial.println("Not sure what happened");
+  if (success) {
+    Serial.println("Send success");
+  } else {
+    Serial.println("Max retry attempts reached, message not sent.");
   }
 }
 
+// ------------------
 // Callback Functions
+// ------------------
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+           mac_addr[0], mac_addr[1], mac_addr[2],
+           mac_addr[3], mac_addr[4], mac_addr[5]);
            
   Serial.print("Last Packet Sent to: ");
   Serial.println(macStr);
@@ -329,7 +348,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     return;
   }
 
-  // Add heartbeat response handling
+  // Handle heartbeat response
   if (message.startsWith("HEARTBEAT_RESPONSE:")) {
     int colonPos = message.indexOf(':');
     String buttonId = message.substring(colonPos + 1);
@@ -369,7 +388,9 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
   }
 }
 
-// Add new function to send pairing request
+// ------------------
+// Pairing and Heartbeat Functions
+// ------------------
 void sendPairingRequest() {
   if (!isPaired) {
     String message = "PAIRING_REQUEST:" + id + ":" + receiverId;
@@ -378,7 +399,6 @@ void sendPairingRequest() {
   }
 }
 
-// Add this function before loop()
 void sendHeartbeat() {
   if (isPaired) {
     String message = "HEARTBEAT:" + id;
@@ -387,9 +407,12 @@ void sendHeartbeat() {
   }
 }
 
+// ------------------
+// Setup and Loop
+// ------------------
 void setup() {
   Serial.begin(9600);
-  Serial.println("START_BUTOON_SETUP");
+  Serial.println("START_BUTTON_SETUP");
 
   randomSeed(analogRead(3));
 
@@ -444,7 +467,7 @@ void setup() {
   lastHeartbeatReceived = 0;
   missedHeartbeats = 0;
   
-  Serial.println("END_BUTOON_SETUP");
+  Serial.println("END_BUTTON_SETUP");
 }
 
 void loop() {
@@ -493,6 +516,4 @@ void loop() {
     default:
       break;
   }
-
-  delay(100);
 }
