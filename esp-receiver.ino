@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
-#include <vector>  // For storing paired buttons
+#include <vector>
 
 #define CHANNEL 3
 #define LOG_LOCAL_LEVEL ESP_LOG_NONE
@@ -19,7 +19,7 @@ bool debug = true;
 esp_now_peer_info_t broadcastPeer;
 String receiverId;
 Preferences preferences;
-std::vector<ButtonInfo> pairedButtons;  // Array to hold paired buttons
+std::vector<ButtonInfo> pairedButtons;  // Holds paired buttons
 
 // Function declarations
 void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
@@ -31,6 +31,12 @@ void loadReceiverId();
 void handleSetId(const String& newId);
 String macToString(const uint8_t* mac);
 void sendPairingResponse(const uint8_t* mac, const String &buttonId);
+
+// New helper functions for messaging
+void sendBroadcastMessage(const String& payload);
+void sendToAllPairedButtons(const String& payload);
+void sendToSpecificButton(const String& buttonId, const String& payload);
+void logDebug(const char* message);
 
 void setup() {
   Serial.begin(9600);
@@ -50,7 +56,7 @@ void loop() {
   }
 }
 
-// Helper functions
+// Debug print helper
 void logDebug(const char* message) {
   if (debug) {
     Serial.println(message);
@@ -104,27 +110,95 @@ void initializeBroadcastPeer() {
   }
 }
 
+// Send a message to all devices (broadcast)
+void sendBroadcastMessage(const String& payload) {
+  esp_err_t result = esp_now_send(broadcastPeer.peer_addr, (uint8_t*)payload.c_str(), payload.length() + 1);
+  if (result == ESP_OK) {
+    Serial.println("Message broadcasted successfully to all devices");
+  } else {
+    Serial.print("Error broadcasting message: ");
+    Serial.println(result);
+  }
+}
+
+// Send a message to all paired buttons
+void sendToAllPairedButtons(const String& payload) {
+  for (const auto& button : pairedButtons) {
+    esp_err_t result = esp_now_send(button.mac, (uint8_t*)payload.c_str(), payload.length() + 1);
+    if (result == ESP_OK) {
+      Serial.print("Message sent to button ");
+      Serial.println(button.id);
+    } else {
+      Serial.print("Error sending message to button ");
+      Serial.print(button.id);
+      Serial.print(": ");
+      Serial.println(result);
+    }
+  }
+}
+
+// Send a message to a specific paired button identified by buttonId
+void sendToSpecificButton(const String& buttonId, const String& payload) {
+  bool found = false;
+  for (const auto& button : pairedButtons) {
+    if (button.id.equals(buttonId)) {
+      esp_err_t result = esp_now_send(button.mac, (uint8_t*)payload.c_str(), payload.length() + 1);
+      if (result == ESP_OK) {
+        Serial.print("Message sent to button ");
+        Serial.println(button.id);
+      } else {
+        Serial.print("Error sending message to button ");
+        Serial.print(button.id);
+        Serial.print(": ");
+        Serial.println(result);
+      }
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    Serial.print("No paired button found with id: ");
+    Serial.println(buttonId);
+  }
+}
+
+// Improved serial message handler
 void handleSerialMessage() {
   String message = Serial.readStringUntil('\n');
   message.trim();
 
   if (message.startsWith("SET_ID:")) {
-    String newId = message.substring(7); // Skip "SET_ID:"
+    String newId = message.substring(String("SET_ID:").length());
+    newId.trim();
     handleSetId(newId);
-  } else if (message == "GET_ID") {
+  } else if (message.equals("GET_ID")) {
     Serial.print("Current Receiver ID: ");
     Serial.println(receiverId);
-  } else if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
-    // Broadcast messages as before.
-    esp_err_t result = esp_now_send(broadcastPeer.peer_addr, 
-                                    (uint8_t *)message.c_str(), 
-                                    message.length() + 1);
-                                    
-    if (result == ESP_OK) {
-      Serial.println("Message broadcasted successfully");
+  }
+  // If message starts with "BROADCAST:" send to all devices via broadcast peer
+  else if (message.startsWith("BROADCAST:")) {
+    String payload = message.substring(String("BROADCAST:").length());
+    payload.trim();
+    sendBroadcastMessage(payload);
+  }
+  // If message starts with "PAIRED_BUTTONS:" send to all paired buttons
+  else if (message.startsWith("PAIRED_BUTTONS:")) {
+    String payload = message.substring(String("PAIRED_BUTTONS:").length());
+    payload.trim();
+    sendToAllPairedButtons(payload);
+  }
+  // If message starts with "BUTTON:" send only to the specific paired button.
+  // Expected format: BUTTON:<BUTTON_ID>:<MESSAGE>
+  else if (message.startsWith("BUTTON:")) {
+    String remainder = message.substring(String("BUTTON:").length());
+    int colonIndex = remainder.indexOf(':');
+    if (colonIndex != -1) {
+      String buttonId = remainder.substring(0, colonIndex);
+      String payload = remainder.substring(colonIndex + 1);
+      payload.trim();
+      sendToSpecificButton(buttonId, payload);
     } else {
-      Serial.print("Error broadcasting message: ");
-      Serial.println(result);
+      Serial.println("Invalid BUTTON message format. Use BUTTON:<ID>:<MESSAGE>");
     }
   } else {
     Serial.println("Invalid message format");
@@ -154,7 +228,7 @@ void sendPairingResponse(const uint8_t* mac, const String &buttonId) {
   // Attempt to add the peer.
   esp_err_t result = esp_now_add_peer(&peerInfo);
   if (result == ESP_ERR_ESPNOW_EXIST) {
-    // Peer already exists. This is fine.
+    // Peer already exists.
   } else if (result != ESP_OK) {
     Serial.print("Failed to add peer for pairing response: ");
     Serial.println(result);
@@ -172,6 +246,7 @@ void sendPairingResponse(const uint8_t* mac, const String &buttonId) {
   }
 }
 
+// Callback function for received ESP-NOW messages
 void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len) {
   // Convert incoming data to a null-terminated string.
   char incomingData[data_len + 1];
