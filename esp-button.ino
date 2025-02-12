@@ -13,6 +13,10 @@
 #define RGB_LED_PIN 2   // DI pin for LED strip
 #define NUM_LEDS 24
 
+// Add heartbeat constants
+#define HEARTBEAT_INTERVAL 5000  // Send heartbeat every 5 seconds
+#define MAX_MISSED_HEARTBEATS 3  // Consider connection lost after 3 missed responses
+
 // ESP-NOW peer info
 esp_now_peer_info_t slave;
 Preferences preferences;
@@ -38,6 +42,11 @@ MainLoopState mainLoopStatus = NO_ACTION;
 // Add these global variables after other global variables
 bool isPaired = false;
 uint8_t receiverMac[6];
+
+// Add heartbeat variables
+unsigned long lastHeartbeatSent = 0;
+unsigned long lastHeartbeatReceived = 0;
+int missedHeartbeats = 0;
 
 // LED Animation Functions
 void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
@@ -309,6 +318,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
       // Store receiver MAC
       memcpy(receiverMac, esp_now_info->src_addr, 6);
       isPaired = true;
+      lastHeartbeatReceived = millis(); // Initialize heartbeat timing
       
       // Update peer to communicate directly with receiver
       memcpy(slave.peer_addr, receiverMac, 6);
@@ -317,6 +327,18 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
       Serial.println("Paired successfully with receiver");
     }
     return;
+  }
+
+  // Add heartbeat response handling
+  if (message.startsWith("HEARTBEAT_RESPONSE:")) {
+    int colonPos = message.indexOf(':');
+    String buttonId = message.substring(colonPos + 1);
+    
+    if (buttonId == id) {
+      lastHeartbeatReceived = millis();
+      missedHeartbeats = 0;
+      return;
+    }
   }
 
   // Parse command and data
@@ -353,6 +375,15 @@ void sendPairingRequest() {
     String message = "PAIRING_REQUEST:" + id + ":" + receiverId;
     sendData(message);
     Serial.println("Sent pairing request");
+  }
+}
+
+// Add this function before loop()
+void sendHeartbeat() {
+  if (isPaired) {
+    String message = "HEARTBEAT:" + id;
+    sendData(message);
+    lastHeartbeatSent = millis();
   }
 }
 
@@ -409,12 +440,32 @@ void setup() {
   
   isPaired = false;
   mainLoopStatus = NO_ACTION;
+  lastHeartbeatSent = 0;
+  lastHeartbeatReceived = 0;
+  missedHeartbeats = 0;
+  
   Serial.println("END_BUTOON_SETUP");
 }
 
 void loop() {
-  // Add pairing request at the start
-  if (!isPaired) {
+  unsigned long currentTime = millis();
+  
+  // Check pairing status and handle heartbeat
+  if (isPaired) {
+    // Send heartbeat periodically
+    if (currentTime - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
+      sendHeartbeat();
+    }
+    
+    // Check for missed heartbeats
+    if (currentTime - lastHeartbeatReceived >= HEARTBEAT_INTERVAL * MAX_MISSED_HEARTBEATS) {
+      Serial.println("Connection lost - too many missed heartbeats");
+      isPaired = false;
+      missedHeartbeats = 0;
+      // Reset peer to broadcast address for pairing
+      initBroadcastSlave();
+    }
+  } else {
     sendPairingRequest();
     delay(1000); // Wait before next attempt
     return;

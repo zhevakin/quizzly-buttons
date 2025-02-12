@@ -291,4 +291,29 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
       Serial.println("Invalid pairing request format");
     }
   }
+
+  // Handle heartbeat messages
+  if (msg.startsWith("HEARTBEAT:")) {
+    int colonPos = msg.indexOf(':');
+    String buttonId = msg.substring(colonPos + 1);
+    
+    // Send heartbeat response back to the button
+    String response = "HEARTBEAT_RESPONSE:" + buttonId;
+    
+    // Create a temporary peer for the response
+    esp_now_peer_info_t tempPeer;
+    memset(&tempPeer, 0, sizeof(tempPeer));
+    memcpy(tempPeer.peer_addr, esp_now_info->src_addr, 6);
+    tempPeer.channel = CHANNEL;
+    tempPeer.encrypt = 0;
+    
+    // Add peer if not exists
+    if (!esp_now_is_peer_exist(tempPeer.peer_addr)) {
+      esp_now_add_peer(&tempPeer);
+    }
+    
+    // Send the response
+    esp_now_send(tempPeer.peer_addr, (uint8_t *)response.c_str(), response.length() + 1);
+    return;
+  }
 }
