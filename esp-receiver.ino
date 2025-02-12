@@ -6,34 +6,58 @@
 #define LOG_LOCAL_LEVEL ESP_LOG_NONE
 #include "esp_log.h"
 
-bool debug = false;
-
+// Global variables
+bool debug = true;
 esp_now_peer_info_t broadcastPeer;
 
-// Function declaration
+// Function declarations
 void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
+void initializeWiFi();
+void initializeESPNow();
+void initializeBroadcastPeer();
+void handleSerialMessage();
 
 void setup() {
-  Serial.begin(9600); // Initialize Serial communication
-  if(debug) {Serial.println();}
-  if(debug) {Serial.println("Receiver start setup");}
+  Serial.begin(9600);
+  logDebug("Receiver start setup");
 
-  // Wi-Fi initialization
+  initializeWiFi();
+  initializeESPNow();
+  initializeBroadcastPeer();
+
+  logDebug("Receiver end setup");
+}
+
+void loop() {
+  if (Serial.available()) {
+    handleSerialMessage();
+  }
+}
+
+// Helper functions
+void logDebug(const char* message) {
+  if (debug) {
+    Serial.println(message);
+  }
+}
+
+void initializeWiFi() {
   WiFi.mode(WIFI_STA);
   esp_wifi_init(NULL);
   esp_wifi_start();
   esp_wifi_set_promiscuous(true);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+}
 
-  // Initialize ESP-NOW
+void initializeESPNow() {
   if (esp_now_init() != ESP_OK) {
     Serial.println("ESP-NOW init failed");
     return;
   }
-
   esp_now_register_recv_cb(OnDataRecv);
+}
 
-  // Initialize the broadcast peer
+void initializeBroadcastPeer() {
   memset(&broadcastPeer, 0, sizeof(broadcastPeer));
   for (int i = 0; i < 6; i++) {
     broadcastPeer.peer_addr[i] = 0xFF;
@@ -41,51 +65,42 @@ void setup() {
   broadcastPeer.channel = CHANNEL;
   broadcastPeer.encrypt = false;
 
-  // Add the broadcast peer
   if (esp_now_add_peer(&broadcastPeer) != ESP_OK) {
     Serial.println("Failed to add broadcast peer");
     return;
   }
-  if(debug){Serial.println("Receiver end setup");}
 }
 
-void loop() {
-  if (Serial.available()) {
-    String message = Serial.readStringUntil('\n');
-    message.trim(); // Remove any leading/trailing whitespace
+void handleSerialMessage() {
+  String message = Serial.readStringUntil('\n');
+  message.trim();
 
-    // Check if the message is in the correct format
-    if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
-      // Send the message via ESP-NOW
-      esp_err_t result = esp_now_send(broadcastPeer.peer_addr, (uint8_t *)message.c_str(), message.length() + 1);
-      if (result == ESP_OK) {
-        Serial.println("Message broadcasted successfully");
-      } else {
-        Serial.print("Error broadcasting message: ");
-        Serial.println(result);
-      }
-    } else {
-      Serial.println("Invalid message format");
-    }
+  if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
+    broadcastMessage(message);
+  } else {
+    Serial.println("Invalid message format");
   }
 }
 
-// Function definition
-void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len) {
-  // Convert MAC address to string
-  char macStr[18];
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           esp_now_info->src_addr[0], esp_now_info->src_addr[1], esp_now_info->src_addr[2],
-           esp_now_info->src_addr[3], esp_now_info->src_addr[4], esp_now_info->src_addr[5]);
+void broadcastMessage(const String& message) {
+  esp_err_t result = esp_now_send(broadcastPeer.peer_addr, 
+                                 (uint8_t *)message.c_str(), 
+                                 message.length() + 1);
+                                 
+  if (result == ESP_OK) {
+    Serial.println("Message broadcasted successfully");
+  } else {
+    Serial.print("Error broadcasting message: ");
+    Serial.println(result);
+  }
+}
 
-  // Copy incoming data into a buffer and null-terminate it
+void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len) {
+  // Convert incoming data to null-terminated string
   char incomingData[data_len + 1];
   memcpy(incomingData, data, data_len);
-  incomingData[data_len] = '\0'; // Null-terminate the string
+  incomingData[data_len] = '\0';
 
-  // Print the received message
-  // Serial.print("Received from ");
-  // Serial.print(macStr);
-  // Serial.print(": ");
+  // Print received message
   Serial.println(incomingData);
 }
