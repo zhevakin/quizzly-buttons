@@ -1,6 +1,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <Preferences.h>
 
 #define CHANNEL 3
 #define LOG_LOCAL_LEVEL ESP_LOG_NONE
@@ -9,6 +10,8 @@
 // Global variables
 bool debug = true;
 esp_now_peer_info_t broadcastPeer;
+String receiverId;
+Preferences preferences;
 
 // Function declarations
 void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, int data_len);
@@ -16,11 +19,14 @@ void initializeWiFi();
 void initializeESPNow();
 void initializeBroadcastPeer();
 void handleSerialMessage();
+void loadReceiverId();
+void handleSetId(const String& newId);
 
 void setup() {
   Serial.begin(9600);
   logDebug("Receiver start setup");
 
+  loadReceiverId();
   initializeWiFi();
   initializeESPNow();
   initializeBroadcastPeer();
@@ -39,6 +45,23 @@ void logDebug(const char* message) {
   if (debug) {
     Serial.println(message);
   }
+}
+
+void loadReceiverId() {
+  preferences.begin("receiver", false);
+  receiverId = preferences.getString("id", "RECEIVER_1"); // Default ID if not set
+  preferences.end();
+  Serial.print("Receiver ID: ");
+  Serial.println(receiverId);
+}
+
+void handleSetId(const String& newId) {
+  receiverId = newId;
+  preferences.begin("receiver", false);
+  preferences.putString("id", receiverId);
+  preferences.end();
+  Serial.print("New Receiver ID set: ");
+  Serial.println(receiverId);
 }
 
 void initializeWiFi() {
@@ -75,7 +98,13 @@ void handleSerialMessage() {
   String message = Serial.readStringUntil('\n');
   message.trim();
 
-  if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
+  if (message.startsWith("SET_ID:")) {
+    String newId = message.substring(7); // Skip "SET_ID:"
+    handleSetId(newId);
+  } else if (message == "GET_ID") {
+    Serial.print("Current Receiver ID: ");
+    Serial.println(receiverId);
+  } else if (message.startsWith("BUTTON_") || message.startsWith("ALL_BUTTONS_")) {
     broadcastMessage(message);
   } else {
     Serial.println("Invalid message format");

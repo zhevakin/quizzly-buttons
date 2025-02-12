@@ -23,6 +23,7 @@ byte color[3];
 
 // Button state
 String id;
+String receiverId;
 bool buttonEnabled = false;
 bool buttonBlocked = false;
 bool useFastLED = false;
@@ -206,6 +207,10 @@ void handleCommand(String command, String data) {
     Serial.println("Received BUTTON_GET_ID command");
     sendData("BUTTON_ID:" + id);
   }
+  else if (command == "BUTTON_GET_RECEIVER_ID") {
+    Serial.println("Received BUTTON_GET_RECEIVER_ID command");
+    sendData("BUTTON_RECEIVER_ID:" + receiverId);
+  }
   else if ((command == "BUTTON_ENABLE" && data == id) || command == "ALL_BUTTONS_ENABLED") {
     Serial.println("Received BUTTON_ENABLE command");
     buttonEnabled = true;
@@ -240,6 +245,17 @@ void handleSetId(String newId) {
   
   preferences.begin("button", false);
   preferences.putString("id", id);
+  preferences.end();
+}
+
+void handleSetReceiverId(String newReceiverId) {
+  Serial.println("Received BUTTON_SET_RECEIVER_ID command");
+  receiverId = newReceiverId;
+  Serial.print("Received Receiver ID = ");
+  Serial.println(receiverId);
+  
+  preferences.begin("button", false);
+  preferences.putString("receiverId", receiverId);
   preferences.end();
 }
 
@@ -302,6 +318,9 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     if (command == "BUTTON_SET_ID") {
       handleSetId(data);
     }
+    else if (command == "BUTTON_SET_RECEIVER_ID") {
+      handleSetReceiverId(data);
+    }
     else if (command == "BUTTON_CHANGE_ID") {
       int secondColon = data.indexOf(':');
       if (secondColon > 0) {
@@ -344,11 +363,14 @@ void setup() {
   // Load saved preferences
   preferences.begin("button", false);
   id = preferences.getString("id", "");
+  receiverId = preferences.getString("receiverId", "RECEIVER_1");
   preferences.getBytes("color", color, 3);
   preferences.end();
 
   Serial.print("BUTTON_ID = ");
   Serial.println(id);
+  Serial.print("RECEIVER_ID = ");
+  Serial.println(receiverId);
   Serial.print("BUTTON_COLOR = ");
   Serial.print(color[0]);
   Serial.print(":");
