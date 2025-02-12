@@ -26,6 +26,7 @@ byte color[3];
 String id;
 bool buttonEnabled = false;
 bool buttonBlocked = false;
+bool useFastLED = true; // Flag to control FastLED usage
 
 byte mainLoopStatus; 
 const byte NO_ACTION = 0;
@@ -36,6 +37,7 @@ const byte WINNER_FLASH = 1;
 
 //
 void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num){
+  if (!useFastLED) return;
   
   CRGBPalette16 myPalette = RainbowStripesColors_p;
 
@@ -44,9 +46,7 @@ void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num){
     delay(del + del_);
     FastLED.showColor(CRGB(0, 0, 0));
     delay(del);
-  }
-
-        
+  }        
 }
 
 
@@ -278,14 +278,14 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     }
 
     //BUTTON_LED_ON
-    if (recvDataStr == ledOnMessage) {
+    if (recvDataStr == ledOnMessage && useFastLED) {
       // The received message matches LED ON
       Serial.println("Received BUTTON_LED_ON command");
       FastLED.showColor(CRGB(color[0], color[1], color[2]));
     }
 
     //BUTTON_LED_OFF
-    if (recvDataStr == ledOffMessage) {
+    if (recvDataStr == ledOffMessage && useFastLED) {
       // The received message matches LED OFF  
       Serial.println("Received BUTTON_LED_OFF command");
       FastLED.showColor(CRGB(0, 0, 0));
@@ -342,8 +342,9 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
         preferences.begin("button", false);
         preferences.putBytes("color", color, 3);
         preferences.end();  
-        FastLED.showColor(CRGB(color[0], color[1], color[2]));
-
+        if (useFastLED) {
+          FastLED.showColor(CRGB(color[0], color[1], color[2]));
+        }
       }
     }
     
@@ -365,8 +366,10 @@ void setup() {
   pinMode(LED_PIN, OUTPUT); // Ensure the LED pin is set as OUTPUT
   pinMode(RGB_LED_PIN, OUTPUT);
   
-
-  FastLED.addLeds<WS2811, RGB_LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  if (useFastLED) {
+    FastLED.addLeds<WS2811, RGB_LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  }
+  
   preferences.begin("button", false);
   id = preferences.getString("id", "");
   preferences.getBytes("color",color,3);
@@ -388,7 +391,9 @@ void setup() {
 
   initBroadcastSlave();
 
-  FastLED.showColor(CRGB(color[0], color[1], color[2]));
+  if (useFastLED) {
+    FastLED.showColor(CRGB(color[0], color[1], color[2]));
+  }
  
   mainLoopStatus = NO_ACTION;
  
