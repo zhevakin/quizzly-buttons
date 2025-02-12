@@ -35,6 +35,10 @@ enum MainLoopState {
 };
 MainLoopState mainLoopStatus = NO_ACTION;
 
+// Add these global variables after other global variables
+bool isPaired = false;
+uint8_t receiverMac[6];
+
 // LED Animation Functions
 void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
   if (!useFastLED) return;
@@ -309,6 +313,25 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
   Serial.print("Last Packet Recv Data: ");
   Serial.println(message);
 
+  // Handle pairing response
+  if (message.startsWith("PAIRING_RESPONSE:")) {
+    int colonPos = message.indexOf(':');
+    String buttonId = message.substring(colonPos + 1);
+    
+    if (buttonId == id) {
+      // Store receiver MAC
+      memcpy(receiverMac, esp_now_info->src_addr, 6);
+      isPaired = true;
+      
+      // Update peer to communicate directly with receiver
+      memcpy(slave.peer_addr, receiverMac, 6);
+      manageSlave();
+      
+      Serial.println("Paired successfully with receiver");
+    }
+    return;
+  }
+
   // Parse command and data
   int colonPos = message.indexOf(':');
   if (colonPos > 0) {
@@ -341,6 +364,15 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
   }
   else {
     handleCommand(message, "");
+  }
+}
+
+// Add new function to send pairing request
+void sendPairingRequest() {
+  if (!isPaired) {
+    String message = "PAIRING_REQUEST:" + id + ":" + receiverId;
+    sendData(message);
+    Serial.println("Sent pairing request");
   }
 }
 
@@ -394,12 +426,20 @@ void setup() {
   if (useFastLED) {
     FastLED.showColor(CRGB(color[0], color[1], color[2]));
   }
- 
+  
+  isPaired = false;
   mainLoopStatus = NO_ACTION;
   Serial.println("END_BUTOON_SETUP");
 }
 
 void loop() {
+  // Add pairing request at the start
+  if (!isPaired) {
+    sendPairingRequest();
+    delay(1000); // Wait before next attempt
+    return;
+  }
+
   // Handle button press
   if (buttonEnabled && !buttonBlocked && digitalRead(BUTTON_PIN) == HIGH) {
     Serial.println("Button Pressed");
