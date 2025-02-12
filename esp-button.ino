@@ -203,46 +203,46 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 }
 
 void handleCommand(String command, String data) {
-  if (command == "BUTTON_WINNER_FLASH" && data == id) {
-    Serial.println("Received BUTTON_WINNER_FLASH command");
+  if (command == "FLASH") {
+    Serial.println("Received FLASH command");
     mainLoopStatus = WINNER_FLASH;
   }
-  else if (command == "BUTTON_GET_ID") {
-    Serial.println("Received BUTTON_GET_ID command");
+  else if (command == "GET_BUTTON_ID") {
+    Serial.println("Received GET_BUTTON_ID command");
     sendData("BUTTON_ID:" + id);
   }
-  else if (command == "BUTTON_GET_RECEIVER_ID") {
-    Serial.println("Received BUTTON_GET_RECEIVER_ID command");
-    sendData("BUTTON_RECEIVER_ID:" + receiverId);
+  else if (command == "GET_RECEIVER_ID") {
+    Serial.println("Received GET_RECEIVER_ID command");
+    sendData("RECEIVER_ID:" + receiverId);
   }
-  else if ((command == "BUTTON_ENABLE" && data == id) || command == "ALL_BUTTONS_ENABLED") {
-    Serial.println("Received BUTTON_ENABLE command");
+  else if (command == "ENABLE") {
+    Serial.println("Received ENABLE command");
     buttonEnabled = true;
   }
-  else if ((command == "BUTTON_DISABLE" && data == id) || command == "ALL_BUTTONS_DISABLED") {
-    Serial.println("Received BUTTON_DISABLE command");
+  else if (command == "DISABLE") {
+    Serial.println("Received DISABLE command");
     buttonEnabled = false;
   }
-  else if ((command == "BUTTON_BLOCK" && data == id) || command == "ALL_BUTTONS_BLOCKED") {
-    Serial.println("Received BUTTON_BLOCK command");
+  else if (command == "BLOCK") {
+    Serial.println("Received BLOCK command");
     buttonBlocked = true;
   }
-  else if ((command == "BUTTON_UNBLOCK" && data == id) || command == "ALL_BUTTONS_UNBLOCK") {
-    Serial.println("Received BUTTON_UNBLOCK command");
+  else if (command == "UNBLOCK") {
+    Serial.println("Received UNBLOCK command");
     buttonBlocked = false;
   }
-  else if (command == "BUTTON_LED_ON" && data == id && useFastLED) {
-    Serial.println("Received BUTTON_LED_ON command");
+  else if (command == "LED_ON" && useFastLED) {
+    Serial.println("Received LED_ON command");
     FastLED.showColor(CRGB(color[0], color[1], color[2]));
   }
-  else if (command == "BUTTON_LED_OFF" && data == id && useFastLED) {
-    Serial.println("Received BUTTON_LED_OFF command");
+  else if (command == "LED_OFF" && useFastLED) {
+    Serial.println("Received LED_OFF command");
     FastLED.showColor(CRGB(0, 0, 0));
   }
 }
 
 void handleSetId(String newId) {
-  Serial.println("Received BUTTON_SET_ID command");
+  Serial.println("Received SET_BUTTON_ID command");
   id = newId;
   Serial.print("Received ID = ");
   Serial.println(id);
@@ -253,7 +253,7 @@ void handleSetId(String newId) {
 }
 
 void handleSetReceiverId(String newReceiverId) {
-  Serial.println("Received BUTTON_SET_RECEIVER_ID command");
+  Serial.println("Received SET_RECEIVER_ID command");
   receiverId = newReceiverId;
   Serial.print("Received Receiver ID = ");
   Serial.println(receiverId);
@@ -263,22 +263,9 @@ void handleSetReceiverId(String newReceiverId) {
   preferences.end();
 }
 
-void handleChangeId(String oldId, String newId) {
-  if (oldId == id) {
-    Serial.println("Received BUTTON_CHANGE_ID command");
-    id = newId;
-    Serial.print("Received ID = ");
-    Serial.println(id);
-    
-    preferences.begin("button", false);
-    preferences.putString("id", id);
-    preferences.end();
-  }
-}
-
 void handleSetColor(String targetId, String colorStr) {
   if (targetId == id) {
-    Serial.println("Received BUTTON_LED_COLOR command");
+    Serial.println("Received SET_LED_COLOR command");
     parsColor(colorStr, color);
     
     preferences.begin("button", false);
@@ -338,20 +325,13 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
     String command = message.substring(0, colonPos);
     String data = message.substring(colonPos + 1);
     
-    if (command == "BUTTON_SET_ID") {
+    if (command == "SET_BUTTON_ID") {
       handleSetId(data);
     }
-    else if (command == "BUTTON_SET_RECEIVER_ID") {
+    else if (command == "SET_RECEIVER_ID") {
       handleSetReceiverId(data);
     }
-    else if (command == "BUTTON_CHANGE_ID") {
-      int secondColon = data.indexOf(':');
-      if (secondColon > 0) {
-        handleChangeId(data.substring(0, secondColon), 
-                      data.substring(secondColon + 1));
-      }
-    }
-    else if (command == "BUTTON_LED_COLOR") {
+    else if (command == "SET_LED_COLOR") {
       int secondColon = data.indexOf(':');
       if (secondColon > 0) {
         handleSetColor(data.substring(0, secondColon),
