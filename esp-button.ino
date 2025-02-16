@@ -63,7 +63,10 @@ void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
     delay(del + del_);
     FastLED.showColor(CRGB(0, 0, 0));
     delay(del);
-  }        
+  }  
+
+  // Restore original button color after animation
+  FastLED.showColor(CRGB(color[0], color[1], color[2]));             
 }
 
 // ------------------
@@ -508,7 +511,7 @@ void loop() {
   // Handle main loop states
   switch(mainLoopStatus) {
     case WINNER_FLASH:
-      coloredFlashlight(100, 10, 30);
+      coloredFlashlight(100, 10, 10);
       mainLoopStatus = NO_ACTION;
       break;
       
