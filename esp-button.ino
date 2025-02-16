@@ -39,7 +39,7 @@ bool useFastLED = true;
 // Main loop states
 enum MainLoopState {
   NO_ACTION = 0,
-  WINNER_FLASH = 1
+  FLASH = 1
 };
 MainLoopState mainLoopStatus = NO_ACTION;
 
@@ -236,7 +236,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 void handleCommand(String command, String data) {
   if (command == "FLASH") {
     Serial.println("Received FLASH command");
-    mainLoopStatus = WINNER_FLASH;
+    mainLoopStatus = FLASH;
   }
   else if (command == "GET_BUTTON_ID") {
     Serial.println("Received GET_BUTTON_ID command");
@@ -510,7 +510,7 @@ void loop() {
 
   // Handle main loop states
   switch(mainLoopStatus) {
-    case WINNER_FLASH:
+    case FLASH:
       coloredFlashlight(100, 10, 10);
       mainLoopStatus = NO_ACTION;
       break;
