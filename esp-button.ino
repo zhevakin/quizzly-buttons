@@ -34,7 +34,7 @@ String id;
 String receiverId;
 bool buttonEnabled = false;
 bool buttonBlocked = false;
-bool useFastLED = false;
+bool useFastLED = true;
 
 // Main loop states
 enum MainLoopState {
