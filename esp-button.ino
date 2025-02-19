@@ -39,7 +39,8 @@ bool useFastLED = true;
 // Main loop states
 enum MainLoopState {
   NO_ACTION = 0,
-  FLASH = 1
+  FLASH = 1,
+  RANDOM_COLOR_FLASH = 2
 };
 MainLoopState mainLoopStatus = NO_ACTION;
 
@@ -53,7 +54,7 @@ int missedHeartbeats = 0;
 // ------------------
 // LED Animation Functions
 // ------------------
-void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
+void randomColorFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
   if (!useFastLED) return;
   
   CRGBPalette16 myPalette = RainbowStripesColors_p;
@@ -67,6 +68,20 @@ void coloredFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
 
   // Restore original button color after animation
   FastLED.showColor(CRGB(color[0], color[1], color[2]));             
+}
+
+void flashlight(unsigned int del, unsigned int del_, unsigned int num) {
+  if (!useFastLED) return;
+
+  for(unsigned int i = 0; i < num; i++) {
+    FastLED.showColor(CRGB(color[0], color[1], color[2]));    
+    delay(del + del_);
+    FastLED.showColor(CRGB(0, 0, 0));
+    delay(del);
+  }
+
+  // Restore original button color after animation
+  FastLED.showColor(CRGB(color[0], color[1], color[2]));
 }
 
 // ------------------
@@ -237,6 +252,10 @@ void handleCommand(String command, String data) {
   if (command == "FLASH") {
     Serial.println("Received FLASH command");
     mainLoopStatus = FLASH;
+  }
+  else if (command == "RANDOM_COLOR_FLASH") {
+    Serial.println("Received RANDOM_COLOR_FLASH command");
+    mainLoopStatus = RANDOM_COLOR_FLASH;
   }
   else if (command == "GET_BUTTON_ID") {
     Serial.println("Received GET_BUTTON_ID command");
@@ -511,7 +530,12 @@ void loop() {
   // Handle main loop states
   switch(mainLoopStatus) {
     case FLASH:
-      coloredFlashlight(100, 10, 10);
+      flashlight(100, 10, 10);
+      mainLoopStatus = NO_ACTION;
+      break;
+      
+    case RANDOM_COLOR_FLASH:
+      randomColorFlashlight(100, 10, 10);
       mainLoopStatus = NO_ACTION;
       break;
       
