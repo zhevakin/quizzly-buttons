@@ -54,7 +54,7 @@ int missedHeartbeats = 0;
 // ------------------
 // LED Animation Functions
 // ------------------
-void randomColorFlashlight(unsigned int del, unsigned int del_, unsigned int num) {
+void randomColorFlash(unsigned int del, unsigned int del_, unsigned int num) {
   if (!useFastLED) return;
   
   CRGBPalette16 myPalette = RainbowStripesColors_p;
@@ -70,7 +70,7 @@ void randomColorFlashlight(unsigned int del, unsigned int del_, unsigned int num
   FastLED.showColor(CRGB(color[0], color[1], color[2]));             
 }
 
-void flashlight(unsigned int del, unsigned int del_, unsigned int num) {
+void flash(unsigned int del, unsigned int del_, unsigned int num) {
   if (!useFastLED) return;
 
   for(unsigned int i = 0; i < num; i++) {
@@ -530,12 +530,12 @@ void loop() {
   // Handle main loop states
   switch(mainLoopStatus) {
     case FLASH:
-      flashlight(100, 10, 10);
+      flash(100, 10, 10);
       mainLoopStatus = NO_ACTION;
       break;
       
     case RANDOM_COLOR_FLASH:
-      randomColorFlashlight(100, 10, 10);
+      randomColorFlash(100, 10, 10);
       mainLoopStatus = NO_ACTION;
       break;
       
