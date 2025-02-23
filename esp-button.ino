@@ -289,40 +289,37 @@ void handleCommand(String command, String data) {
     Serial.println("Received LED_OFF command");
     FastLED.showColor(CRGB(0, 0, 0));
   }
-}
-
-void handleSetId(String newId) {
-  Serial.println("Received SET_BUTTON_ID command");
-  id = newId;
-  Serial.print("Received ID = ");
-  Serial.println(id);
-  
-  preferences.begin("button", false);
-  preferences.putString("id", id);
-  preferences.end();
-}
-
-void handleSetReceiverId(String newReceiverId) {
-  Serial.println("Received SET_RECEIVER_ID command");
-  receiverId = newReceiverId;
-  Serial.print("Received Receiver ID = ");
-  Serial.println(receiverId);
-  
-  preferences.begin("button", false);
-  preferences.putString("receiverId", receiverId);
-  preferences.end();
-}
-
-void handleSetColor(String colorStr) {
-  Serial.println("Received SET_LED_COLOR command");
-  parseColor(colorStr, color);
-  
-  preferences.begin("button", false);
-  preferences.putBytes("color", color, 3);
-  preferences.end();
-  
-  if (useFastLED) {
-    FastLED.showColor(CRGB(color[0], color[1], color[2]));
+  else if (command == "SET_BUTTON_ID") {
+    Serial.println("Received SET_BUTTON_ID command");
+    id = data;
+    Serial.print("New ID = ");
+    Serial.println(id);
+    
+    preferences.begin("button", false);
+    preferences.putString("id", id);
+    preferences.end();
+  }
+  else if (command == "SET_RECEIVER_ID") {
+    Serial.println("Received SET_RECEIVER_ID command");
+    receiverId = data;
+    Serial.print("New Receiver ID = ");
+    Serial.println(receiverId);
+    
+    preferences.begin("button", false);
+    preferences.putString("receiverId", receiverId);
+    preferences.end();
+  }
+  else if (command == "SET_LED_COLOR") {
+    Serial.println("Received SET_LED_COLOR command");
+    parseColor(data, color);
+    
+    preferences.begin("button", false);
+    preferences.putBytes("color", color, 3);
+    preferences.end();
+    
+    if (useFastLED) {
+      FastLED.showColor(CRGB(color[0], color[1], color[2]));
+    }
   }
 }
 
@@ -385,19 +382,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
   if (colonPos > 0) {
     String command = message.substring(0, colonPos);
     String data = message.substring(colonPos + 1);
-    
-    if (command == "SET_BUTTON_ID") {
-      handleSetId(data);
-    }
-    else if (command == "SET_RECEIVER_ID") {
-      handleSetReceiverId(data);
-    }
-    else if (command == "SET_LED_COLOR") {
-      handleSetColor(data);
-    }
-    else {
-      handleCommand(command, data);
-    }
+    handleCommand(command, data);
   }
   else {
     handleCommand(message, "");
@@ -518,6 +503,21 @@ void loop() {
     delay(100); // Debounce
     while (digitalRead(BUTTON_PIN) == HIGH) {
       delay(10); // Wait for release
+    }
+  }
+
+  // Handle serial commands
+  if (Serial.available()) {
+    String serialInput = Serial.readStringUntil('\n');
+    serialInput.trim();
+    
+    int colonPos = serialInput.indexOf(':');
+    if (colonPos > 0) {
+      String command = serialInput.substring(0, colonPos);
+      String data = serialInput.substring(colonPos + 1);
+      handleCommand(command, data);
+    } else {
+      handleCommand(serialInput, "");
     }
   }
 
