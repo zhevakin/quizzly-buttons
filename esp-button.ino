@@ -87,7 +87,7 @@ void flash(unsigned int del, unsigned int del_, unsigned int num) {
 // ------------------
 // Helper Functions
 // ------------------
-void parsColor(String colorStr, byte* c) {
+void parseColor(String colorStr, byte* c) {
   int firstColon = colorStr.indexOf(":");
   int secondColon = colorStr.indexOf(":", firstColon + 1);
   
@@ -313,18 +313,16 @@ void handleSetReceiverId(String newReceiverId) {
   preferences.end();
 }
 
-void handleSetColor(String targetId, String colorStr) {
-  if (targetId == id) {
-    Serial.println("Received SET_LED_COLOR command");
-    parsColor(colorStr, color);
-    
-    preferences.begin("button", false);
-    preferences.putBytes("color", color, 3);
-    preferences.end();
-    
-    if (useFastLED) {
-      FastLED.showColor(CRGB(color[0], color[1], color[2]));
-    }
+void handleSetColor(String colorStr) {
+  Serial.println("Received SET_LED_COLOR command");
+  parseColor(colorStr, color);
+  
+  preferences.begin("button", false);
+  preferences.putBytes("color", color, 3);
+  preferences.end();
+  
+  if (useFastLED) {
+    FastLED.showColor(CRGB(color[0], color[1], color[2]));
   }
 }
 
@@ -395,11 +393,7 @@ void OnDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *data, in
       handleSetReceiverId(data);
     }
     else if (command == "SET_LED_COLOR") {
-      int secondColon = data.indexOf(':');
-      if (secondColon > 0) {
-        handleSetColor(data.substring(0, secondColon),
-                      data.substring(secondColon + 1));
-      }
+      handleSetColor(data);
     }
     else {
       handleCommand(command, data);
