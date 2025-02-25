@@ -490,9 +490,11 @@ void loop() {
       initBroadcastSlave();
     }
   } else {
-    sendPairingRequest();
-    delay(1000); // Wait before next attempt
-    return;
+    static unsigned long lastPairingAttempt = 0;
+    if (currentTime - lastPairingAttempt >= 1000) {
+      sendPairingRequest();
+      lastPairingAttempt = currentTime;
+    }
   }
 
   // Handle button press
