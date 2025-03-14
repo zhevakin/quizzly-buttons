@@ -55,29 +55,43 @@ int missedHeartbeats = 0;
 // LED Animation Functions
 // ------------------
 void randomColorFlash(unsigned int del, unsigned int del_, unsigned int num) {
-  if (!useFastLED) return;
-  
-  CRGBPalette16 myPalette = RainbowStripesColors_p;
 
-  for(unsigned int i = 0; i < num; i++) {
-    FastLED.showColor(ColorFromPalette(myPalette, random(8) * 32));
-    delay(del + del_);
-    FastLED.showColor(CRGB(0, 0, 0));
-    delay(del);
-  }  
+  if (useFastLED) {
+    CRGBPalette16 myPalette = RainbowStripesColors_p;
 
-  // Restore original button color after animation
-  FastLED.showColor(CRGB(color[0], color[1], color[2]));             
+    for(unsigned int i = 0; i < num; i++) {
+      FastLED.showColor(ColorFromPalette(myPalette, random(8) * 32));
+      delay(del + del_);
+      FastLED.showColor(CRGB(0, 0, 0));
+      delay(del);
+    }  
+    // Restore original button color after animation
+    FastLED.showColor(CRGB(color[0], color[1], color[2]));             
+  } else {
+    for(unsigned int i = 0; i < num; i++) {
+      digitalWrite(LED_PIN, HIGH);
+      delay(del + del_);
+      digitalWrite(LED_PIN, LOW);
+      delay(del);
+    }
+    // Restore original button flash after animation
+    digitalWrite(LED_PIN, HIGH);
+  }
 }
 
 void flash(unsigned int del, unsigned int del_, unsigned int num) {
-  if (!useFastLED) return;
-
   for(unsigned int i = 0; i < num; i++) {
-    FastLED.showColor(CRGB(color[0], color[1], color[2]));    
-    delay(del + del_);
-    FastLED.showColor(CRGB(0, 0, 0));
-    delay(del);
+    if (useFastLED) {
+      FastLED.showColor(CRGB(color[0], color[1], color[2]));    
+      delay(del + del_);
+      FastLED.showColor(CRGB(0, 0, 0));
+      delay(del);
+    } else {
+      digitalWrite(LED_PIN, HIGH);
+      delay(del + del_);
+      digitalWrite(LED_PIN, LOW);
+      delay(del);
+    }
   }
 
   // Restore original button color after animation
@@ -281,13 +295,21 @@ void handleCommand(String command, String data) {
     Serial.println("Received UNBLOCK command");
     buttonBlocked = false;
   }
-  else if (command == "LED_ON" && useFastLED) {
+  else if (command == "LED_ON") {
     Serial.println("Received LED_ON command");
-    FastLED.showColor(CRGB(color[0], color[1], color[2]));
+    if (useFastLED) {
+      FastLED.showColor(CRGB(color[0], color[1], color[2]));
+    } else {
+      digitalWrite(LED_PIN, HIGH);
+    }
   }
-  else if (command == "LED_OFF" && useFastLED) {
+  else if (command == "LED_OFF") {
     Serial.println("Received LED_OFF command");
-    FastLED.showColor(CRGB(0, 0, 0));
+    if (useFastLED) {
+      FastLED.showColor(CRGB(0, 0, 0));
+    } else {
+      digitalWrite(LED_PIN, LOW);
+    }
   }
   else if (command == "SET_BUTTON_ID") {
     Serial.println("Received SET_BUTTON_ID command");
@@ -460,6 +482,8 @@ void setup() {
 
   if (useFastLED) {
     FastLED.showColor(CRGB(color[0], color[1], color[2]));
+  } else {
+    digitalWrite(LED_PIN, HIGH);
   }
   
   isPaired = false;
