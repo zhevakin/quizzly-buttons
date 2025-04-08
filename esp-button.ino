@@ -11,8 +11,13 @@
 #define DELETEBEFOREPAIR 0
 #define BUTTON_PIN 13
 #define LED_PIN 12
-#define RGB_LED_PIN 2   // DI pin for LED strip
-#define NUM_LEDS 24
+#define RGB_LED_PIN 2  // DI pin for LED strip
+#define NUM_LEDS 34
+
+// Default color values for #fd5b01
+#define DEFAULT_RED 253
+#define DEFAULT_GREEN 91
+#define DEFAULT_BLUE 1
 
 // Heartbeat constants
 #define HEARTBEAT_INTERVAL 5000  // Send heartbeat every 5 seconds
@@ -27,7 +32,7 @@ Preferences preferences;
 
 // LED strip
 CRGB leds[NUM_LEDS];
-byte color[3];
+byte color[3] = {DEFAULT_RED, DEFAULT_GREEN, DEFAULT_BLUE};  // Initialize with default color
 
 // Button state
 String id;
@@ -445,8 +450,8 @@ void setup() {
   pinMode(RGB_LED_PIN, OUTPUT);
   
   if (useFastLED) {
-    FastLED.addLeds<WS2811, RGB_LED_PIN, GRB>(leds, NUM_LEDS)
-           .setCorrection(TypicalLEDStrip);
+    FastLED.addLeds<WS2812, RGB_LED_PIN, GRB>(leds, NUM_LEDS)
+      .setCorrection(TypicalLEDStrip);
   }
   
   // Load saved preferences
@@ -455,6 +460,13 @@ void setup() {
   receiverId = preferences.getString("receiverId", "RECEIVER_1");
   preferences.getBytes("color", color, 3);
   preferences.end();
+
+  // If no color was saved in preferences, use default color
+  if (color[0] == 0 && color[1] == 0 && color[2] == 0) {
+    color[0] = DEFAULT_RED;
+    color[1] = DEFAULT_GREEN;
+    color[2] = DEFAULT_BLUE;
+  }
 
   Serial.print("BUTTON_ID = ");
   Serial.println(id);
