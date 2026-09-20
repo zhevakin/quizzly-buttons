@@ -2,6 +2,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_idf_version.h>
 #include <Preferences.h>
 #include "FastLED.h"
 
@@ -255,7 +256,15 @@ void sendData(String message) {
 // ------------------
 // Callback Functions
 // ------------------
+// arduino-esp32 3.3.0 (ESP-IDF 5.5) changed esp_now_send_cb_t: the first argument
+// is now `const esp_now_send_info_t *` (aka wifi_tx_info_t) instead of the MAC.
+// Same guard Espressif uses in libraries/ESP_NOW/src/ESP32_NOW.cpp.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+void OnDataSent(const esp_now_send_info_t *tx_info, esp_now_send_status_t status) {
+  const uint8_t *mac_addr = tx_info->des_addr;
+#else
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+#endif
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
            mac_addr[0], mac_addr[1], mac_addr[2],
